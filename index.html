@@ -13,30 +13,35 @@
 <body class="bg-gray-200">
     <div id='app'>
         <nav class="flex items-center justify-between flex-wrap p-6">
-            <h1 class="text-3xl font-bold leading-tight text-gray-900">{{ title }}
+            <h1 class="text-3xl font-bold leading-tight text-gray-600">{{ title }}
             </h1>
-            <div class="flex-shrink-0">
-                <img class="h-10 w-10 rounded-full"
+            <form @submit="setUser" class="flex items-center border-b border-b-2 border-gray-300 py-2">
+                <input placeholder="User ID" ref='userId'
+                    class="appearance-none bg-transparent border-none w-full text-gray-700 mr-3 py-1 px-2 leading-tight focus:outline-none" />
+                <button
+                    class="flex-shrink-0 bg-gray-500 hover:bg-gray-700 border-gray-500 hover:border-gray-700 text-sm border-4 text-white py-1 px-2 rounded">Set
+                    User</button>
+                <!-- <img class="h-10 w-10 rounded-full"
                     src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
-                    alt="" />
-            </div>
+                    alt="" /> -->
+            </form>
         </nav>
         <main class="flex flex-wrap px-6 mb-6">
-            <section class="w-full flex items-center justify-between flex-wrap p-6">
+            <section class="w-full flex items-center justify-between flex-wrap p-4">
                 <div>
                     <h2 class="text-gray-600">Total Balance</h2>
                     <p class="font-bold text-4xl">{{ balance }} SPC</p>
                 </div>
-                <div>
-                    <button v-on:click="getChain"
-                        class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded">Send</button>
-                    <button v-on:click="getChain"
-                        class="ml-2 bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded">Receive</button>
-                </div>
+                <button v-on:click="refreshTransactions"
+                    class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded shadow">Send</button>
             </section>
             <section
                 class="w-full align-middle inline-block min-w-full shadow overflow-hidden sm:rounded-lg border-b border-gray-400">
-                <h2 class="font-bold text-xl p-4 bg-white">Recent transactions</h2>
+                <header class="flex justify-between flex-wrap bg-white">
+                    <h2 class="font-bold text-xl p-4 bg-white">Recent transactions</h2>
+                    <button v-on:click="refreshTransactions"
+                        class="bg-transparent text-gray-500 font-semibold hover:text-red-700 py-2 px-6">Refresh</button>
+                </header>
                 <table class="min-w-full">
                     <thead>
                         <tr>
@@ -49,15 +54,21 @@
                             <th
                                 class="px-6 py-3 border-b border-gray-200 bg-gray-100 text-left text-xs leading-4 font-medium text-gray-500 uppercase tracking-wider">
                                 Sender</th>
+                            <th
+                                class="px-6 py-3 border-b border-gray-200 bg-gray-100 text-left text-xs leading-4 font-medium text-gray-500 uppercase tracking-wider">
+                                Date</th>
                         </tr>
                     </thead>
                     <tbody class="bg-white">
                         <tr v-for="transaction in blockchain">
-                            <td class=" px-6 py-4 whitespace-no-wrap border-b border-gray-200">{{ transaction.amount }}
+                            <td class="px-6 py-4 whitespace-no-wrap border-b border-gray-200">+{{ transaction.amount }}
                                 SPC</td>
                             <td class="px-6 py-4 whitespace-no-wrap border-b border-gray-200">
                                 {{ transaction.recipient }}</td>
                             <td class="px-6 py-4 whitespace-no-wrap border-b border-gray-200">{{ transaction.sender }}
+                            </td>
+                            <td class="px-6 py-4 whitespace-no-wrap border-b border-gray-200">
+                                {{ transaction.timestamp }}
                             </td>
                         </tr>
                     </tbody>
@@ -67,29 +78,30 @@
     </div>
 
     <script type="text/javascript">
-        const user = 'spicy-🌮🌮🌮'
-        // const user = 'nattroj\n'
         var app = new Vue({
             el: '#app',
             data: {
                 title: 'Spicy Coin Wallet',
                 blockchain: '',
-                balance: ''
+                balance: '',
+                user: localStorage.getItem('user')
             },
             methods: {
-                getChain: function (event) {
-                    getChain()
+                refreshTransactions: function (event) {
+                    refreshTransactions();
                 },
-                view: function (event) {
-                    alert('Chain added')
-                    if (event) {
-                        alert(event.target.tagName)
-                    }
+                setUser: function (event) {
+                    event.preventDefault();
+                    localStorage.setItem('user', this.$refs.userId.value);
+                    this.user = this.$refs.userId.value;
+                    refreshTransactions();
                 }
             }
         });
 
-        function getChain() {
+        function refreshTransactions() {
+            console.log('refreshing transactions, user:', app.user)
+            const user = app.user;
             axios
                 .get('http://localhost:5000/chain')
                 .then(res => {
@@ -99,14 +111,18 @@
                     // find out if any transactions in that block involve the user
 
                     let transactions = [];
-                    for (let i = 0; i < chain.length; i++) {
+                    for (let i = chain.length - 1; i >= 0; i--) {
                         const block = chain[i]
 
-                        for (let j = 0; j < block.transactions.length; j++) {
+                        for (let j = block.transactions.length - 1; j >= 0; j--) {
                             const senderRecipient = [block.transactions[j].sender, block.transactions[j].recipient];
 
                             if (!!senderRecipient.find(_user => _user === user)) {
-                                transactions.push(block.transactions[j])
+                                console.log(block.timestamp)
+                                let timestamp = new Date(block.timestamp * 1000);
+                                let options = { month: 'short', day: 'numeric', year: "numeric" };
+                                block.transactions[j].timestamp = `${timestamp.toLocaleDateString(undefined, options)} at ${timestamp.toLocaleTimeString()}`
+                                transactions.push(block.transactions[j]);
                             }
                         }
                     }
@@ -124,7 +140,7 @@
                 .catch(err => console.log("err:", err.message))
         }
 
-        getChain();
+        refreshTransactions();
     </script>
 </body>
 
